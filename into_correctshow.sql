@@ -1,11 +1,6 @@
 /*
 Navicat MySQL Data Transfer
 
-Source Server         : 172.23.142.45
-Source Server Version : 50173
-Source Host           : 172.23.142.45:3306
-Source Database       : AdInspect
-
 Target Server Type    : MYSQL
 Target Server Version : 50173
 File Encoding         : 65001
