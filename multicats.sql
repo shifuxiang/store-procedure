@@ -10,7 +10,7 @@ Target Server Type    : MYSQL
 Target Server Version : 50173
 File Encoding         : 65001
 
-Date: 2017-06-12 11:10:08
+Date: 2017-06-12 11:11:05
 */
 
 SET FOREIGN_KEY_CHECKS=0;
@@ -252,91 +252,81 @@ AUTO_INCREMENT=1
 ;
 
 -- ----------------------------
--- Procedure structure for `Into_creectshow`
+-- Procedure structure for `multicast`
 -- ----------------------------
 DELIMITER ;;
-CREATE DEFINER=`root`@`%` PROCEDURE `Into_creectshow`(IN `duration` int(11),IN  `countControl` int(11))
+CREATE DEFINER=`root`@`%` PROCEDURE `multicast`(IN `duration` int)
 BEGIN
 	#Routine body goes here...
-	DECLARE num INT DEFAULT 0;     #记录dragon表中的厅号
-	DECLARE dragon_count INT DEFAULT 0;			#记录dragon表中的记录条数
-	DECLARE correct_num INT DEFAULT 0;			#记录正确表中的厅号
-	DECLARE correct_count INT DEFAULT 0;		#记录正确表中的记录条数
-	DECLARE correct_time DATETIME DEFAULT '0000-00-00 00:00:00';  #记录正确表中的时间
-	DECLARE timet DATETIME DEFAULT '0000-00-00 00:00:00'; 				#记录dragon表中的时间
-	DECLARE time_count INT DEFAULT 0;															#在做判断时间条数和状态条数是否相等时记录时间条数			
-	DECLARE status_count INT DEFAULT 0;														#在做判断时间条数和状态条数是否相等时记录状态条数
-	DECLARE hall_num VARCHAR(20);																	#	
-	DECLARE ad_id 	VARCHAR(36);
-	DECLARE ad_starttime DATETIME DEFAULT '0000-00-00 00:00:00';
-	DECLARE adv_name	VARCHAR(128);
-	DECLARE in_order INT DEFAULT 0;
-	DECLARE numofpicture INT DEFAULT 0;
-	DECLARE monitor_count INT DEFAULT 0;
-	DECLARE relative_position INT DEFAULT 0;		
-	DECLARE correct_cinemacity VARCHAR(32);
+	DECLARE dragon_count INT DEFAULT 0;
+	DECLARE dragon_hallno INT DEFAULT 0;
+	DECLARE dragon_time DATETIME DEFAULT '0000-00-00 00:00:00';
+
+	DECLARE correct_count INT DEFAULT 0;
+	DECLARE correct_hallno INT DEFAULT 0;
+	DECLARE correct_time 	DATETIME DEFAULT '0000-00-00 00:00:00';
+	DECLARE correct_uuid VARCHAR(36);
+	DECLARE correct_starttime DATETIME DEFAULT '0000-00-00 00:00:00';
+	DECLARE correct_imglen INT DEFAULT 0;
+	DECLARE correct_city VARCHAR(32);
 	DECLARE correct_cinemaname VARCHAR(36);
-	DECLARE monitor_adback VARCHAR(64);
-	DECLARE monitor_adprevious VARCHAR(64);
-	DECLARE inspecstarttime DATETIME DEFAULT '0000-00-00 00:00:00';		#这期间的变量为记录要插入的数据
-	DECLARE done INT DEFAULT 0;																				#标志位
-	#DECLARE cur1 CURSOR FOR SELECT hallno,create_time  FROM correct_show;			#从正确表中查询数据
-	DECLARE cur1 CURSOR FOR SELECT hallno,inspect_start_time  FROM correct_show;			#从正确表中查询数据
-	DECLARE cur2 CURSOR FOR SELECT hallno,time  FROM dragon ;									#从dragon表中查询数据
-	DECLARE cur3 CURSOR FOR SELECT hall_no,advert_id,inspect_start_time,displayName,inspect_order,imglen,cinema_city,cinema_name,advert_back,advert_previous  FROM oristarmr.app_monitor 
-							WHERE hall_no=num AND UNIX_TIMESTAMP(inspect_start_time)<UNIX_TIMESTAMP(timet) 
-							AND UNIX_TIMESTAMP(inspect_start_time)>(UNIX_TIMESTAMP(timet)-duration) AND monitor_status=1 ORDER BY inspect_order;  #查询要插入的数据
-	DECLARE  CONTINUE HANDLER FOR NOT FOUND  SET  done = 1; 								#设置标志位
+	DECLARE correct_inspectstarttime DATETIME DEFAULT '0000-00-00 00:00:00';
+
+	DECLARE monitor_count INT DEFAULT 0;
+	DECLARE monitor_hallno INT DEFAULT 0;
+	DECLARE monitor_time DATETIME DEFAULT '0000-00-00 00:00:00';
+	DECLARE monitor_uuid VARCHAR(36);
+	DECLARE monitor_id VARCHAR(255);
+	DECLARE monitor_stat INT DEFAULT 0;
+	
+	DECLARE cur1 CURSOR FOR SELECT hallno,time FROM dragon;   #定义一个游标从dragon表中查询厅号和龙标出现的时间
+	DECLARE cur2 CURSOR FOR SELECT hallno ,create_time,advert_id,Relative_starttime,imglen,cinema_city,cinema_name,inspect_start_time FROM correct_show 
+			WHERE DATE_FORMAT(inspect_start_time,'%y-%m-%d') = DATE_FORMAT(dragon_time,'%y-%m-%d') AND hallno = dragon_hallno;  #定义一个游标从correct_show表中查询厅号和创建时间
+	DECLARE cur3 CURSOR FOR SELECT hall_no,inspect_start_time ,advert_id ,id,monitor_status FROM oristarmr.app_monitor 
+			WHERE UNIX_TIMESTAMP(inspect_start_time) < UNIX_TIMESTAMP(dragon_time) AND UNIX_TIMESTAMP(inspect_start_time)>(UNIX_TIMESTAMP(dragon_time)-duration) 
+						AND hall_no=dragon_hallno; #定义一个游标从app_monitor表中查询厅号和时间
 	
 
-	#首先查询dragon表 然后使用该次查处的数据去和正确表中的每一条去比较若正确表中存在该天并且厅号相同则退出循环，再从dragon表中获取一次数据，若正确表中没有该时间，
-	#则插入
-	OPEN cur2;
+	OPEN cur1;
 	SELECT COUNT(id) INTO dragon_count FROM dragon;
-	FETCH cur2 INTO num,timet;
 	WHILE dragon_count != 0 DO
-		OPEN cur1;
-		SELECT COUNT(id) INTO correct_count FROM correct_show;
-		FETCH cur1 INTO correct_num,correct_time;
-		outer_lable :BEGIN
-			WHILE correct_count !=0 DO
-			#IF (DATE_FORMAT(timet,'%y-%m-%d') = DATE_FORMAT(from_unixtime(UNIX_TIMESTAMP(correct_time)-timeCalibration),'%y-%m-%d') AND num =correct_num)
-			IF (DATE_FORMAT(timet,'%y-%m-%d') = DATE_FORMAT(correct_time,'%y-%m-%d') AND num =correct_num)
-			THEN
-				LEAVE outer_lable;
-			END IF;
-			FETCH cur1 INTO correct_num,correct_time;
-			SET correct_count = correct_count-1;
-			END WHILE;
-			SELECT COUNT(inspect_start_time) INTO time_count FROM oristarmr.app_monitor WHERE hall_no=num AND UNIX_TIMESTAMP(inspect_start_time)<UNIX_TIMESTAMP(timet) AND UNIX_TIMESTAMP(inspect_start_time)>(UNIX_TIMESTAMP(timet)-duration);
-			SELECT COUNT(monitor_status) INTO status_count FROM oristarmr.app_monitor WHERE monitor_status=1 AND hall_no=num AND UNIX_TIMESTAMP(inspect_start_time)<UNIX_TIMESTAMP(timet) AND UNIX_TIMESTAMP(inspect_start_time)>(UNIX_TIMESTAMP(timet)-duration);
-			IF time_count=status_count AND time_count > countControl
-			THEN
+		FETCH cur1 INTO dragon_hallno,dragon_time;
+		OPEN cur3;
+		SELECT COUNT(id) INTO monitor_count FROM oristarmr.app_monitor 
+					WHERE UNIX_TIMESTAMP(inspect_start_time) < UNIX_TIMESTAMP(dragon_time) AND UNIX_TIMESTAMP(inspect_start_time)>(UNIX_TIMESTAMP(dragon_time)-duration) 
+						AND hall_no=dragon_hallno;
 
-				SELECT COUNT(id) INTO monitor_count FROM oristarmr.app_monitor WHERE
-					hall_no=num AND UNIX_TIMESTAMP(inspect_start_time)<UNIX_TIMESTAMP(timet) AND UNIX_TIMESTAMP(inspect_start_time)>(UNIX_TIMESTAMP(timet)-duration) AND monitor_status=1;
-				OPEN cur3;
-				FETCH cur3 INTO hall_num,ad_id,ad_starttime,adv_name,in_order,numofpicture,correct_cinemacity,correct_cinemaname,monitor_adback,monitor_adprevious;
-				WHILE monitor_count != 0 DO
-					
-					SELECT SUM(imglen) INTO relative_position FROM oristarmr.app_monitor WHERE hall_no=num AND UNIX_TIMESTAMP(inspect_start_time)<UNIX_TIMESTAMP(timet) 
-							AND UNIX_TIMESTAMP(inspect_start_time)>(UNIX_TIMESTAMP(timet)-duration) AND monitor_status=1 AND  inspect_order<=in_order;
-					INSERT INTO AdInspect.correct_show(hallno,advert_id,create_time,ad_name,inspect_order,imglen,Relative_starttime,inspect_start_time,cinema_city,cinema_name,advert_back,advert_previous) 
-						VALUES(hall_num,ad_id,NOW(),adv_name,in_order,numofpicture,relative_position,ad_starttime,correct_cinemacity,correct_cinemaname,monitor_adback,monitor_adprevious);
-					FETCH cur3 INTO hall_num,ad_id,ad_starttime,adv_name,in_order,numofpicture,correct_cinemacity,correct_cinemaname,monitor_adback,monitor_adprevious;
-				SET monitor_count = monitor_count -1;
+		WHILE monitor_count != 0 DO
+				FETCH cur3 INTO monitor_hallno,monitor_time,monitor_uuid,monitor_id,monitor_stat;
+
+				out_lable :BEGIN
+				OPEN cur2;
+
+				SELECT COUNT(id) INTO correct_count FROM correct_show 
+						WHERE DATE_FORMAT(inspect_start_time,'%y-%m-%d') = DATE_FORMAT(dragon_time,'%y-%m-%d') AND hallno = dragon_hallno;
+
+				WHILE correct_count != 0 DO
+					FETCH cur2 INTO correct_hallno,correct_time,correct_uuid,correct_starttime,correct_imglen,correct_city,correct_cinemaname,correct_inspectstarttime;
+					IF monitor_uuid = correct_uuid 
+						THEN
+							CLOSE cur2;
+							LEAVE out_lable;
+					END IF;
+					SET correct_count = correct_count - 1;
 				END WHILE;
-				
-				CLOSE cur3;
-			END IF;
-		END outer_lable;
-		CLOSE cur1;
-	FETCH cur2 INTO num,timet;
-	SET dragon_count = dragon_count-1;
+				#更新一条信息
+				IF monitor_stat = 1
+				THEN
+				UPDATE oristarmr.app_monitor SET monitor_status = 4 WHERE hall_no = correct_hallno AND id = monitor_id;
+				END IF;
+				CLOSE cur2;
+				END out_lable;
+			SET monitor_count = monitor_count-1;
+		END WHILE;
+		CLOSE cur3;
+	SET dragon_count = dragon_count -1;
 	END WHILE;
-	
-	
-	CLOSE cur2;
+	CLOSE cur1;
 END
 ;;
 DELIMITER ;
